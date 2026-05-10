@@ -64,28 +64,28 @@
         .distance-card {
             background: rgba(0,0,0,0.3);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 24px;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 16px;
             text-align: center;
         }
 
         .distance-label {
-            font-size: 0.875rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
         .distance-value {
-            font-size: 2.5rem;
+            font-size: 1.75rem;
             font-weight: 700;
             color: var(--accent);
         }
 
         .distance-unit {
-            font-size: 1rem;
+            font-size: 0.85rem;
             color: var(--text-main);
             font-weight: 500;
         }
@@ -100,6 +100,17 @@
             color: var(--text-muted);
             margin-bottom: 12px;
             display: block;
+        }
+
+        .disclaimer {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: -12px;
+            margin-bottom: 24px;
+            text-align: center;
+            opacity: 0.7;
+            line-height: 1.5;
+            word-break: keep-all;
         }
 
         /* Radio Buttons for Map Type */
@@ -268,6 +279,10 @@
                 <div class="distance-label">Elevation Gain</div>
                 <div class="distance-value" style="color: #22c55e;"><span id="elevation-display">0</span><span class="distance-unit"> m</span></div>
             </div>
+        </div>
+
+        <div class="disclaimer">
+            ※ GPS 환경에 따라 실제 거리 및 고도 데이터는 차이가 발생할 수 있습니다.
         </div>
 
         <div class="control-group" style="flex-grow: 1; display: flex; flex-direction: column; min-height: 200px;">
@@ -439,11 +454,14 @@
             
             if (waypoints.length > 0) {
                 allCoords.push(waypoints[0]);
-                allEles.push(elevationSegments.length > 0 ? elevationSegments[0][0] : 0);
+                // elevationSegments[0] = 첫 번째 웨이포인트 단독 고도 (1개짜리 배열)
+                // elevationSegments[i+1] = i번째 경로 세그먼트 고도 배열
+                allEles.push(elevationSegments.length > 0 && elevationSegments[0] ? elevationSegments[0][0] || 0 : 0);
                 
                 for (let i = 0; i < routeSegments.length; i++) {
                     const segment = routeSegments[i];
-                    const eles = elevationSegments[i] || new Array(segment.length).fill(0);
+                    // 경로 세그먼트 고도는 index i+1 에 저장 (index 0은 첫 웨이포인트 전용)
+                    const eles = elevationSegments[i + 1] || new Array(segment.length).fill(0);
                     
                     if (segment.length > 0) {
                         let startIdx = 0;
@@ -454,7 +472,7 @@
                         }
                         for (let j = startIdx; j < segment.length; j++) {
                             allCoords.push(segment[j]);
-                            // 다운로드 버그 방지: 고도값이 undefined일 경우 0으로 강제 처리
+                            // 고도값이 undefined일 경우 0으로 강제 처리
                             const ele = (eles && eles[j] !== undefined) ? eles[j] : 0;
                             allEles.push(ele);
                         }
@@ -669,26 +687,30 @@
             const newPoint = [e.latlng.lat, e.latlng.lng];
             
             if (waypoints.length === 0) {
+                // 첫 번째 웨이포인트: elevationSegments[0]에 단일 고도 저장
                 waypoints.push(newPoint);
-                elevationSegments.push([0]);
+                elevationSegments.push([0]); // elevationSegments[0] 자리 확보
                 updateUI();
                 
-                // 백그라운드 고도 조회
+                // 첫 포인트 고도를 백그라운드로 조회 (단일 지점)
                 activeElevationRequests++;
                 updateUI();
                 fetchElevationsForSegment([newPoint]).then(eles => {
+                    // elevationSegments[0]은 오직 첫 웨이포인트 전용
                     elevationSegments[0] = eles;
                     activeElevationRequests--;
                     updateUI();
                 });
             } else {
                 const lastPoint = waypoints[waypoints.length - 1];
-                const segmentIndex = routeSegments.length; // 비동기 순서 꼬임 방지를 위한 인덱스 고정
+                // 경로 세그먼트 인덱스: routeSegments의 현재 길이 = 새로 추가될 세그먼트의 인덱스
+                const routeSegIdx = routeSegments.length;         // 0-based index in routeSegments
+                const eleSegIdx = routeSegIdx + 1;               // elevationSegments[0]은 첫 웨이포인트 전용이므로 +1
                 
                 // 일단 직선으로 즉시 그리고 상태 업데이트
                 waypoints.push(newPoint);
                 routeSegments.push([lastPoint, newPoint]); 
-                elevationSegments.push([0, 0]); // placeholder
+                elevationSegments.push([0, 0]); // elevationSegments[eleSegIdx] 자리 확보 (placeholder)
                 updateUI();
                 
                 let segment = null;
@@ -709,20 +731,20 @@
                     segment = [lastPoint, newPoint];
                 }
                 
-                // 경로와 거리는 고도와 상관없이 즉각적으로 화면에 반영!
-                routeSegments[segmentIndex] = segment; 
+                // 경로는 즉각적으로 화면에 반영
+                routeSegments[routeSegIdx] = segment; 
                 
                 if (segmentEles) {
-                    // BRouter가 고도를 한방에 줬을 경우 (딜레이 제로)
-                    elevationSegments[segmentIndex] = segmentEles;
+                    // BRouter가 고도를 한방에 줬을 경우 → eleSegIdx(=routeSegIdx+1)에 저장
+                    elevationSegments[eleSegIdx] = segmentEles;
                     updateUI();
                 } else {
                     updateUI();
-                    // 고도가 없을 경우 (직선 모드 등) 백그라운드에서 OpenTopoData로 천천히 조회
+                    // 직선 모드 등 고도가 없을 경우 백그라운드에서 OpenTopoData로 조회
                     activeElevationRequests++;
                     updateUI();
                     fetchElevationsForSegment(segment).then(eles => {
-                        elevationSegments[segmentIndex] = eles;
+                        elevationSegments[eleSegIdx] = eles;
                         activeElevationRequests--;
                         updateUI();
                     });
@@ -787,15 +809,61 @@
             }
         }
 
+        /**
+         * 고도 노이즈 제거 (gpx_노이즈제거.html 알고리즘 적용)
+         * 1단계: Spike 제거 (전후 평균 대비 ±2m 이상 튀는 값 보정)
+         * 2단계: 이동평균 1차 (window=31)
+         * 3단계: 이동평균 2차 (window=31) → 최종 부드러운 고도
+         */
+        function smoothElevations(elevations) {
+            if (elevations.length < 3) return elevations;
+            let data = elevations.slice(); // 원본 보존
+
+            // 1단계: Spike 제거
+            for (let i = 1; i < data.length - 1; i++) {
+                const avg = (data[i - 1] + data[i + 1]) / 2;
+                if (Math.abs(data[i] - avg) > 2.0) {
+                    data[i] = avg;
+                }
+            }
+
+            // 2단계: 이동평균 1차 (window=31)
+            const windowSize = 31;
+            const half = Math.floor(windowSize / 2);
+            const pass1 = [];
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - half);
+                const end = Math.min(data.length, i + half + 1);
+                const slice = data.slice(start, end);
+                const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+                pass1.push(avg);
+            }
+
+            // 3단계: 이동평균 2차 (window=31)
+            const pass2 = [];
+            for (let i = 0; i < pass1.length; i++) {
+                const start = Math.max(0, i - 15);
+                const end = Math.min(pass1.length, i + 16);
+                const slice = pass1.slice(start, end);
+                const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+                pass2.push(Math.round(avg * 100) / 100);
+            }
+
+            return pass2;
+        }
+
         function downloadGPX() {
             const combined = getCombinedData();
             const allCoords = combined.coords;
-            const allEles = combined.elevations;
+            const rawEles = combined.elevations;
 
             if (allCoords.length === 0) {
                 alert("No points to download. Please click on the map to draw a route.");
                 return;
             }
+
+            // 다운로드 전 노이즈 제거 적용
+            const allEles = smoothElevations(rawEles);
 
             let gpxStr = `<?xml version="1.0" encoding="UTF-8"?>\n`;
             gpxStr += `<gpx version="1.1" creator="HTML GPX Creator" xmlns="http://www.topografix.com/GPX/1/1">\n`;
@@ -820,6 +888,7 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
+
 
     </script>
 </body>
