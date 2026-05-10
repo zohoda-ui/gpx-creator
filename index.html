@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPX Route Creator</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --sidebar-bg: rgba(24, 24, 27, 0.85);
+            --text-main: #f4f4f5;
+            --text-muted: #a1a1aa;
+            --accent: #ef4444; /* red */
+            --accent-hover: #dc2626;
+            --btn-bg: #27272a;
+            --btn-hover: #3f3f46;
+            --border-color: #3f3f46;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+        }
+
+        /* Sidebar Styling */
+        #sidebar {
+            width: 350px;
+            height: 100%;
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            z-index: 1000;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #fff;
+            letter-spacing: -0.5px;
+        }
+
+        .distance-card {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .distance-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .distance-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .distance-unit {
+            font-size: 1rem;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .control-group {
+            margin-bottom: 24px;
+        }
+
+        .control-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        /* Radio Buttons for Map Type */
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+
+        .radio-label input[type="radio"] {
+            accent-color: var(--accent);
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Buttons */
+        button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--btn-bg);
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 12px;
+        }
+
+        button:hover {
+            background: var(--btn-hover);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+            margin-top: auto;
+            margin-bottom: 0;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        /* Map Container */
+        #map {
+            flex-grow: 1;
+            height: 100%;
+            background-color: #1e1e1e;
+        }
+
+        /* Custom Leaflet overrides */
+        .leaflet-container {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h1>GPX Route Creator</h1>
+        
+        <div class="stats-container" style="display: flex; gap: 10px; margin-bottom: 24px;">
+            <div class="distance-card" style="flex: 1; margin-bottom: 0;">
+                <div class="distance-label">Distance</div>
+                <div class="distance-value"><span id="distance-display">0.00</span><span class="distance-unit"> km</span></div>
+            </div>
+            <div class="distance-card" style="flex: 1; margin-bottom: 0;">
+                <div class="distance-label">Elevation Gain</div>
+                <div class="distance-value" style="color: #22c55e;"><span id="elevation-display">0</span><span class="distance-unit"> m</span></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">MAP TYPE</span>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="mapType" value="base" checked onchange="changeMapType(this.value)">
+                    일반 지도 (Vworld)
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="mapType" value="satellite" onchange="changeMapType(this.value)">
+                    위성 지도 (Vworld)
+                </label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">ROUTING MODE</span>
+            <div class="radio-group">
+                <label class="radio-label">
+                    <input type="radio" name="routingMode" value="routing" onchange="changeRoutingMode(this.value)">
+                    경로 탐색 (자동 길찾기)
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="routingMode" value="straight" checked onchange="changeRoutingMode(this.value)">
+                    직선 연결 (기본값)
+                </label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">LOCATION SEARCH</span>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="search-input" placeholder="지역, 산 이름 검색..." style="flex:1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: #18181b; color: white;" onkeypress="if(event.key === 'Enter') searchLocation()">
+                <button onclick="searchLocation()" style="width: auto; margin: 0; padding: 10px 16px;">🔍</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="control-label">ACTIONS</span>
+            <button onclick="undoLastPoint()">Undo Last Point</button>
+            <button onclick="clearAll()">Clear All</button>
+        </div>
+
+        <button class="btn-primary" onclick="downloadGPX()">Download GPX File</button>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        const VWORLD_KEY = "6EACCCD5-9EDA-3F5E-BE60-CA3622EEAA28";
+        
+        // Vworld Tile URLs
+        const baseLayerUrl = `http://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`;
+        const satelliteLayerUrl = `http://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Satellite/{z}/{y}/{x}.jpeg`;
+        const hybridLayerUrl = `http://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Hybrid/{z}/{y}/{x}.png`;
+
+        // Initialize Map
+        const map = L.map('map', {
+            zoomControl: false // custom position
+        }).setView([36.5, 127.5], 7);
+
+        L.control.zoom({
+            position: 'topright'
+        }).addTo(map);
+
+        // Layers
+        const baseLayer = L.tileLayer(baseLayerUrl, {
+            maxZoom: 19,
+            attribution: '© Vworld'
+        });
+
+        const satelliteLayer = L.tileLayer(satelliteLayerUrl, {
+            maxZoom: 19,
+            attribution: '© Vworld'
+        });
+
+        const hybridLayer = L.tileLayer(hybridLayerUrl, {
+            maxZoom: 19,
+            pane: 'overlayPane'
+        });
+
+        // Add default layer
+        baseLayer.addTo(map);
+
+        // State
+        let currentMapType = 'base';
+        let isRoutingMode = false; // 기본값을 직선 모드로 변경
+        let waypoints = []; // User clicked points
+        let routeSegments = []; // Polylines between points
+        let elevationSegments = []; // Elevations corresponding to routeSegments points
+        
+        let polyline = L.polyline([], {color: '#ef4444', weight: 5, opacity: 0.9, lineJoin: 'round'}).addTo(map);
+        let markers = L.layerGroup().addTo(map);
+
+        // Icons
+        const createIcon = (color) => {
+            return L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
+            });
+        };
+        const startIcon = createIcon('#22c55e'); // green
+        const endIcon = createIcon('#ef4444');   // red
+        const nodeIcon = createIcon('#3b82f6');  // blue
+
+        function changeMapType(type) {
+            currentMapType = type;
+            if (type === 'base') {
+                map.removeLayer(satelliteLayer);
+                map.removeLayer(hybridLayer);
+                baseLayer.addTo(map);
+            } else {
+                map.removeLayer(baseLayer);
+                satelliteLayer.addTo(map);
+                hybridLayer.addTo(map); // Hybrid goes on top
+            }
+        }
+
+        function changeRoutingMode(mode) {
+            isRoutingMode = (mode === 'routing');
+        }
+
+        // Haversine formula
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371.0; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180.0;
+            const dLon = (lon2 - lon1) * Math.PI / 180.0;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1 * Math.PI / 180.0) * Math.cos(lat2 * Math.PI / 180.0) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function getCombinedData() {
+            let allCoords = [];
+            let allEles = [];
+            
+            if (waypoints.length > 0) {
+                allCoords.push(waypoints[0]);
+                allEles.push(elevationSegments.length > 0 ? elevationSegments[0][0] : 0);
+                
+                for (let i = 0; i < routeSegments.length; i++) {
+                    const segment = routeSegments[i];
+                    const eles = elevationSegments[i] || new Array(segment.length).fill(0);
+                    
+                    if (segment.length > 0) {
+                        let startIdx = 0;
+                        if (allCoords.length > 0 && 
+                            allCoords[allCoords.length-1][0] === segment[0][0] && 
+                            allCoords[allCoords.length-1][1] === segment[0][1]) {
+                            startIdx = 1;
+                        }
+                        for (let j = startIdx; j < segment.length; j++) {
+                            allCoords.push(segment[j]);
+                            allEles.push(eles[j]);
+                        }
+                    }
+                }
+            }
+            return { coords: allCoords, elevations: allEles };
+        }
+
+        function calculateDistance(allCoords) {
+            let total = 0;
+            for (let i = 1; i < allCoords.length; i++) {
+                total += haversine(allCoords[i-1][0], allCoords[i-1][1], allCoords[i][0], allCoords[i][1]);
+            }
+            return total;
+        }
+
+        function calculateElevationGain(elevations) {
+            let gain = 0;
+            for (let i = 1; i < elevations.length; i++) {
+                const diff = elevations[i] - elevations[i-1];
+                if (diff > 0) gain += diff;
+            }
+            return gain;
+        }
+
+        function updateUI() {
+            const combined = getCombinedData();
+            const allCoords = combined.coords;
+            const allEles = combined.elevations;
+            
+            // Update distance
+            const dist = calculateDistance(allCoords);
+            document.getElementById('distance-display').innerText = dist.toFixed(2);
+
+            // Update elevation
+            const gain = calculateElevationGain(allEles);
+            document.getElementById('elevation-display').innerText = Math.round(gain);
+
+            // Update polyline
+            polyline.setLatLngs(allCoords);
+
+            // Update markers
+            markers.clearLayers();
+            if (waypoints.length > 0) {
+                L.marker(waypoints[0], {icon: startIcon}).addTo(markers).bindTooltip("Start");
+                
+                if (waypoints.length > 1) {
+                    L.marker(waypoints[waypoints.length - 1], {icon: endIcon}).addTo(markers).bindTooltip("End");
+                }
+                
+                for(let i = 1; i < waypoints.length - 1; i++) {
+                    L.marker(waypoints[i], {icon: nodeIcon, interactive: false}).addTo(markers);
+                }
+            }
+        }
+
+        // Fetch Route from OSRM
+        async function fetchRoute(start, end) {
+            try {
+                // OSRM expects lon,lat
+                const url = `https://router.project-osrm.org/route/v1/foot/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.code === 'Ok' && data.routes.length > 0) {
+                    const routeDistKm = data.routes[0].distance / 1000.0;
+                    const straightDistKm = haversine(start[0], start[1], end[0], end[1]);
+                    
+                    // 우회로가 너무 심한 경우 (직선거리 대비 3배 이상 우회) 직선으로 강제 연결
+                    if (straightDistKm > 0.01 && routeDistKm > straightDistKm * 3.0) {
+                        console.warn("우회로가 너무 길어 직선으로 대체합니다.");
+                        return [start, end];
+                    }
+
+                    // GeoJSON coords are [lon, lat], we need [lat, lon]
+                    let coords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    
+                    // API가 도로로 강제로 스냅(Snap)하여 생기는 클릭 지점과의 빈 공간을 메꿔줍니다.
+                    coords.unshift(start);
+                    coords.push(end);
+                    
+                    return coords;
+                }
+            } catch (error) {
+                console.error("Routing error:", error);
+            }
+            return null; // Fallback to straight line
+        }
+
+        // Fetch Elevations for a Segment
+        async function fetchElevationsForSegment(coords) {
+            if (!coords || coords.length === 0) return [];
+            
+            const maxPoints = 100;
+            let sampleIndices = [];
+            
+            if (coords.length <= maxPoints) {
+                for (let i = 0; i < coords.length; i++) sampleIndices.push(i);
+            } else {
+                for (let i = 0; i < maxPoints; i++) {
+                    sampleIndices.push(Math.floor(i * (coords.length - 1) / (maxPoints - 1)));
+                }
+                sampleIndices[sampleIndices.length - 1] = coords.length - 1;
+            }
+            
+            const locationsStr = sampleIndices.map(idx => `${coords[idx][0]},${coords[idx][1]}`).join('|');
+            
+            try {
+                const response = await fetch(`https://api.opentopodata.org/v1/srtm90m?locations=${locationsStr}`);
+                const data = await response.json();
+                
+                if (data.status === "OK" && data.results) {
+                    let sampledElevations = data.results.map(r => r.elevation);
+                    let finalElevations = new Array(coords.length).fill(0);
+                    
+                    for (let i = 0; i < sampleIndices.length - 1; i++) {
+                        let idxA = sampleIndices[i];
+                        let idxB = sampleIndices[i+1];
+                        let eleA = sampledElevations[i];
+                        let eleB = sampledElevations[i+1];
+                        
+                        finalElevations[idxA] = eleA;
+                        finalElevations[idxB] = eleB;
+                        
+                        let steps = idxB - idxA;
+                        for (let j = 1; j < steps; j++) {
+                            finalElevations[idxA + j] = eleA + (eleB - eleA) * (j / steps);
+                        }
+                    }
+                    return finalElevations;
+                }
+            } catch (e) {
+                console.error("Elevation fetch error", e);
+            }
+            return new Array(coords.length).fill(0);
+        }
+
+        // Map Click Event
+        map.on('click', async function(e) {
+            const newPoint = [e.latlng.lat, e.latlng.lng];
+            
+            if (waypoints.length === 0) {
+                waypoints.push(newPoint);
+                updateUI();
+            } else {
+                const lastPoint = waypoints[waypoints.length - 1];
+                const segmentIndex = routeSegments.length; // 비동기 순서 꼬임 방지를 위한 인덱스 고정
+                
+                // 일단 직선으로 즉시 그리고 상태 업데이트
+                waypoints.push(newPoint);
+                routeSegments.push([lastPoint, newPoint]); 
+                elevationSegments.push([0, 0]); // placeholder
+                updateUI();
+                
+                document.body.style.cursor = 'wait';
+                let segment = null;
+                if (isRoutingMode) {
+                    segment = await fetchRoute(lastPoint, newPoint);
+                }
+                if (!segment) {
+                    segment = [lastPoint, newPoint];
+                }
+                
+                let eles = await fetchElevationsForSegment(segment);
+                
+                routeSegments[segmentIndex] = segment; // 나중에 응답이 와도 제자리에 덮어쓰기
+                elevationSegments[segmentIndex] = eles;
+                document.body.style.cursor = 'default';
+                updateUI();
+            }
+        });
+
+        // Actions
+        function undoLastPoint() {
+            if (waypoints.length > 0) {
+                waypoints.pop();
+                if (routeSegments.length > 0) {
+                    routeSegments.pop();
+                    elevationSegments.pop();
+                }
+                updateUI();
+            }
+        }
+
+        function clearAll() {
+            waypoints = [];
+            routeSegments = [];
+            elevationSegments = [];
+            updateUI();
+        }
+
+        // Vworld Search API Logic
+        function searchLocation() {
+            const query = document.getElementById('search-input').value;
+            if (!query) return;
+
+            const existing = document.getElementById('vworld-search-script');
+            if (existing) existing.remove();
+
+            // First search by Place (POIs like mountains, parks)
+            const script = document.createElement('script');
+            script.id = 'vworld-search-script';
+            script.src = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=1&page=1&query=${encodeURIComponent(query)}&type=place&format=json&errorformat=json&key=${VWORLD_KEY}&callback=handleSearchResult`;
+            document.head.appendChild(script);
+        }
+
+        function handleSearchResult(data) {
+            if (data.response && data.response.status === "OK" && data.response.result.items.length > 0) {
+                const item = data.response.result.items[0];
+                map.setView([parseFloat(item.point.y), parseFloat(item.point.x)], 14);
+            } else {
+                // Fallback to District (행정구역)
+                const query = document.getElementById('search-input').value;
+                const script = document.createElement('script');
+                script.id = 'vworld-search-script-district';
+                script.src = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=1&page=1&query=${encodeURIComponent(query)}&type=district&format=json&errorformat=json&key=${VWORLD_KEY}&callback=handleDistrictResult`;
+                document.head.appendChild(script);
+            }
+        }
+
+        function handleDistrictResult(data) {
+            if (data.response && data.response.status === "OK" && data.response.result.items.length > 0) {
+                const item = data.response.result.items[0];
+                map.setView([parseFloat(item.point.y), parseFloat(item.point.x)], 11);
+            } else {
+                alert("검색 결과를 찾을 수 없습니다.");
+            }
+        }
+
+        function downloadGPX() {
+            const combined = getCombinedData();
+            const allCoords = combined.coords;
+            const allEles = combined.elevations;
+
+            if (allCoords.length === 0) {
+                alert("No points to download. Please click on the map to draw a route.");
+                return;
+            }
+
+            let gpxStr = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+            gpxStr += `<gpx version="1.1" creator="HTML GPX Creator" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+            gpxStr += `  <trk>\n    <name>My Custom Route</name>\n    <trkseg>\n`;
+
+            allCoords.forEach((coord, i) => {
+                gpxStr += `      <trkpt lat="${coord[0]}" lon="${coord[1]}">\n`;
+                gpxStr += `        <ele>${allEles[i].toFixed(1)}</ele>\n`;
+                gpxStr += `      </trkpt>\n`;
+            });
+
+            gpxStr += `    </trkseg>\n  </trk>\n</gpx>`;
+
+            const blob = new Blob([gpxStr], { type: "application/gpx+xml;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "my_custom_route.gpx";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+    </script>
+</body>
+</html>
