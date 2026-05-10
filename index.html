@@ -244,12 +244,12 @@
             <span class="control-label">ROUTING MODE</span>
             <div class="radio-group">
                 <label class="radio-label">
-                    <input type="radio" name="routingMode" value="routing" onchange="changeRoutingMode(this.value)">
-                    경로 탐색 (자동 길찾기)
+                    <input type="radio" name="routingMode" value="routing" checked onchange="changeRoutingMode(this.value)">
+                    경로 탐색 (자동 길찾기) (기본값)
                 </label>
                 <label class="radio-label">
-                    <input type="radio" name="routingMode" value="straight" checked onchange="changeRoutingMode(this.value)">
-                    직선 연결 (기본값)
+                    <input type="radio" name="routingMode" value="straight" onchange="changeRoutingMode(this.value)">
+                    직선 연결 (오프로드)
                 </label>
             </div>
         </div>
@@ -319,7 +319,7 @@
 
         // State
         let currentMapType = 'osm';
-        let isRoutingMode = false; // 기본값을 직선 모드로 변경
+        let isRoutingMode = true; // 기본값을 자동 길찾기로 변경
         let waypoints = []; // User clicked points
         let routeSegments = []; // Polylines between points
         let elevationSegments = []; // Elevations corresponding to routeSegments points
