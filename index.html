@@ -403,6 +403,13 @@
                 직선 연결 (오프로드)
             </label>
         </div>
+        <div class="settings-col">
+            <h3>OVERLAYS</h3>
+            <label class="radio-label">
+                <input type="checkbox" id="hikingLayerToggle" onchange="toggleHikingLayer(this.checked)" checked>
+                전국 등산로 (Vworld)
+            </label>
+        </div>
     </div>
 
     <!-- Main FAB (경로 생성) -->
@@ -489,8 +496,19 @@
         const baseLayer = L.tileLayer(baseLayerUrl, { maxZoom: 19, attribution: '© Vworld' });
         const satelliteLayer = L.tileLayer(satelliteLayerUrl, { maxZoom: 19, attribution: '© Vworld' });
         const hybridLayer = L.tileLayer(hybridLayerUrl, { maxZoom: 19, pane: 'overlayPane' });
+        const hikingLayer = L.tileLayer.wms('https://api.vworld.kr/req/wms?', {
+            layers: 'lt_l_frstclimbing',
+            styles: 'lt_l_frstclimbing',
+            format: 'image/png',
+            transparent: true,
+            key: VWORLD_KEY,
+            domain: window.location.hostname || 'localhost',
+            maxZoom: 19,
+            pane: 'overlayPane'
+        });
 
         osmLayer.addTo(map);
+        hikingLayer.addTo(map);
 
         // State
         let currentMapType = 'osm';
@@ -572,6 +590,14 @@
 
         function changeRoutingMode(mode) {
             isRoutingMode = (mode === 'routing');
+        }
+
+        function toggleHikingLayer(show) {
+            if (show) {
+                hikingLayer.addTo(map);
+            } else {
+                map.removeLayer(hikingLayer);
+            }
         }
 
         // Haversine formula
